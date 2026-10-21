@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Melodic Formula - Advanced Interactive Guitar Framework</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#0a0f1d',
+                            card: '#131b2e',
+                            border: '#22304a',
+                            accent: '#38bdf8',
+                            accentGlow: 'rgba(56, 189, 248, 0.25)',
+                            coral: '#f43f5e',
+                            gold: '#fbbf24',
+                            emerald: '#10b981',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Fretboard Styling */
+        .fretboard-scroll {
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #38bdf8 #131b2e;
+        }
+        
+        .fretboard-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+        .fretboard-scroll::-webkit-scrollbar-track {
+            background: #0a0f1d;
+            border-radius: 4px;
+        }
+        .fretboard-scroll::-webkit-scrollbar-thumb {
+            background: #22304a;
+            border-radius: 4px;
+        }
+        .fretboard-scroll::-webkit-scrollbar-thumb:hover {
+            background: #38bdf8;
+        }
+
+        /* Fret Inlays */
+        .fret-inlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            background-color: rgba(148, 163, 184, 0.25);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .fret-inlay.double-top {
+            transform: translate(-50%, -120%);
+        }
+        .fret-inlay.double-bottom {
+            transform: translate(-50%, 20%);
+        }
+
+        /* Note Marker Animations */
+        .note-btn {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .note-btn:hover {
+            transform: scale(1.25);
+            z-index: 30;
+        }
+        .note-btn.playing {
+            transform: scale(1.4);
+            box-shadow: 0 0 15px #38bdf8;
+            z-index: 40;
+        }
+
+        /* Pulse glow for playing status */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+            50% { box-shadow: 0 0 18px rgba(56, 189, 248, 0.8); }
+        }
+        .active-glow {
+            animation: pulse-glow 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-brand-dark text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-accent selection:text-brand-dark">
+
+    <!-- Header Header/Navbar -->
+    <header class="border-b border-brand-border bg-brand-card/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-brand-accent to-blue-600 flex items-center justify-center font-bold text-xl text-slate-900 shadow-lg shadow-brand-accent/20">
+                    🎸
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-brand-accent via-sky-200 to-indigo-300 bg-clip-text text-transparent">
+                        The Melodic Formula Studio
+                    </h1>
+                    <p class="text-xs text-slate-400">Interactive Guitar Playback Masterclass System</p>
+                </div>
+            </div>
+
+            <!-- Master Controls -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Key Selector -->
+                <div class="flex items-center space-x-2 bg-brand-dark/80 px-3 py-1.5 rounded-lg border border-brand-border">
+                    <label for="keySelect" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Key:</label>
+                    <select id="keySelect" onchange="handleKeyOrModeChange()" class="bg-transparent text-sm font-bold text-brand-accent focus:outline-none cursor-pointer">
+                        <option value="Am" class="bg-brand-card text-slate-100">A Minor / C Major</option>
+                        <option value="Em" class="bg-brand-card text-slate-100">E Minor / G Major</option>
+                        <option value="Dm" class="bg-brand-card text-slate-100">D Minor / F Major</option>
+                        <option value="Gm" class="bg-brand-card text-slate-100">G Minor / Bb Major</option>
+                        <option value="Bm" class="bg-brand-card text-slate-100">B Minor / D Major</option>
+                        <option value="Cm" class="bg-brand-card text-slate-100">C Minor / Eb Major</option>
+                    </select>
+                </div>
+
+                <!-- Mode / Scale Selector -->
+                <div class="flex items-center space-x-2 bg-brand-dark/80 px-3 py-1.5 rounded-lg border border-brand-border">
+                    <label for="modeSelect" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Focus:</label>
+                    <select id="modeSelect" onchange="handleKeyOrModeChange()" class="bg-transparent text-sm font-bold text-brand-accent focus:outline-none cursor-pointer">
+                        <option value="formula" class="bg-brand-card text-slate-100">✨ Melodic Formula Tones (Targets + Hooks)</option>
+                        <option value="minor_pentatonic" class="bg-brand-card text-slate-100">Minor Pentatonic (Full Scale)</option>
+                        <option value="major_pentatonic" class="bg-brand-card text-slate-100">Major Pentatonic (Full Scale)</option>
+                        <option value="blues" class="bg-brand-card text-slate-100">Blues Scale (+ Flat 5th)</option>
+                        <option value="triads" class="bg-brand-card text-slate-100">Minor & Major Triads</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+
+        <!-- Overview Concept Banner -->
+        <section class="bg-brand-card border border-brand-border rounded-2xl p-6 relative overflow-hidden shadow-2xl">
+            <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-brand-accent/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                <div class="md:col-span-2 space-y-3">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-accent/10 text-brand-accent border border-brand-accent/20">David Wallimann Concept</span>
+                    <h2 class="text-2xl font-bold text-white">Break Free from Random Scale Box Looping</h2>
+                    <p class="text-slate-300 text-sm leading-relaxed">
+                        The <span class="text-brand-accent font-semibold">Melodic Formula</span> shifts your focus from running up and down 5 pentatonic box shapes to targeting emotional chord tones (3rds, 5ths, 7ths) connected by short, vocal rhythm motifs.
+                    </p>
+                </div>
+                <div class="bg-brand-dark/60 border border-brand-border rounded-xl p-4 flex flex-col justify-center space-y-2 text-xs">
+                    <div class="flex justify-between text-slate-300">
+                        <span>Current Root Note:</span>
+                        <span id="displayRootNote" class="font-bold text-brand-coral">A</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>Primary Target Tones:</span>
+                        <span id="displayTargetTones" class="font-bold text-brand-accent">C, E, G</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>Hook Passing Note:</span>
+                        <span id="displayPassingTone" class="font-bold text-brand-gold">D</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Fretboard Visualizer -->
+        <section class="bg-brand-card border border-brand-border rounded-2xl p-6 shadow-xl space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>🎸</span> Interactive Fretboard Visualizer (Frets 0 - 15)
+                    </h3>
+                    <p class="text-xs text-slate-400">Click any note marker to listen to its pitch and view interval roles.</p>
+                </div>
+
+                <!-- Legend -->
+                <div class="flex flex-wrap items-center gap-4 text-xs">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded-full bg-brand-coral shadow-sm shadow-brand-coral/50 inline-block"></span>
+                        <span class="text-slate-300">Root</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded-full bg-brand-accent shadow-sm shadow-brand-accent/50 inline-block"></span>
+                        <span class="text-slate-300">Target Tone</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded-full bg-brand-gold shadow-sm shadow-brand-gold/50 inline-block"></span>
+                        <span class="text-slate-300">Passing Note / Blue Note</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3.5 h-3.5 rounded-full bg-slate-700 border border-slate-500 inline-block"></span>
+                        <span class="text-slate-300">Scale Tone</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fretboard Render Container -->
+            <div class="fretboard-scroll py-4">
+                <div id="fretboardContainer" class="min-w-[950px] relative bg-slate-950 border-2 border-slate-700 rounded-lg p-2 select-none shadow-inner">
+                    <!-- Dynamic Grid JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Step-by-Step Formula Builder -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Step 1 -->
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col justify-between hover:border-brand-accent/40 transition">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold px-2.5 py-1 rounded bg-brand-coral/20 text-brand-coral border border-brand-coral/30">Step 01</span>
+                        <span class="text-xs text-slate-500">Foundation</span>
+                    </div>
+                    <h3 class="text-base font-bold text-white">The Hook / Motif</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Start with a simple 3-note rhythm statement. Don't worry about complexity. Focus on rhythm stability and memorable movement.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-brand-border/60">
+                    <button onclick="playFormulaStepAudio(1)" class="w-full py-2.5 px-4 bg-brand-dark hover:bg-slate-800 border border-brand-border rounded-xl text-xs font-bold text-brand-accent flex items-center justify-center gap-2 transition active:scale-95">
+                        <span>▶ Play Step 1 Motif</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col justify-between hover:border-brand-accent/40 transition">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold px-2.5 py-1 rounded bg-brand-gold/20 text-brand-gold border border-brand-gold/30">Step 02</span>
+                        <span class="text-xs text-slate-500">Expansion</span>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Sequence & Variation</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Repeat the motif rhythmic structure starting on a higher scale degree or shifting the final note to build melodic narrative.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-brand-border/60">
+                    <button onclick="playFormulaStepAudio(2)" class="w-full py-2.5 px-4 bg-brand-dark hover:bg-slate-800 border border-brand-border rounded-xl text-xs font-bold text-brand-gold flex items-center justify-center gap-2 transition active:scale-95">
+                        <span>▶ Play Step 2 Variation</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-6 flex flex-col justify-between hover:border-brand-accent/40 transition">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold px-2.5 py-1 rounded bg-brand-emerald/20 text-brand-emerald border border-brand-emerald/30">Step 03</span>
+                        <span class="text-xs text-slate-500">Resolution</span>
+                    </div>
+                    <h3 class="text-base font-bold text-white">Target Resolution</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Land solidly on a strong target tone (Root, b3, or 5th) exactly on the downbeat of the chord shift to create sweet release.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-brand-border/60">
+                    <button onclick="playFormulaStepAudio(3)" class="w-full py-2.5 px-4 bg-brand-dark hover:bg-slate-800 border border-brand-border rounded-xl text-xs font-bold text-brand-emerald flex items-center justify-center gap-2 transition active:scale-95">
+                        <span>▶ Play Step 3 Resolution</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Backing Track & TAB Riff Generator -->
+        <section class="bg-brand-card border border-brand-border rounded-2xl p-6 shadow-xl space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>🎛️</span> Rhythm Jam & Real-Time Riff Generator
+                    </h3>
+                    <p class="text-xs text-slate-400">Generate real-time key-adapted TAB solos constructed using David Wallimann's Formula.</p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button id="backingTrackBtn" onclick="toggleBackingTrack()" class="px-5 py-2.5 bg-brand-accent hover:bg-sky-400 text-brand-dark font-bold text-xs rounded-xl shadow-lg shadow-brand-accent/20 transition flex items-center gap-2 active:scale-95">
+                        <span id="backingIcon">▶</span>
+                        <span id="backingText">Start Backing Groove</span>
+                    </button>
+                    <button onclick="generateAndPlayRiff()" class="px-5 py-2.5 bg-brand-dark hover:bg-slate-800 border border-brand-accent/40 text-brand-accent font-bold text-xs rounded-xl transition flex items-center gap-2 active:scale-95">
+                        <span>⚡ Generate & Play Formula Solo</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB Output Screen -->
+            <div class="bg-brand-dark border border-brand-border rounded-xl p-5 font-mono text-xs sm:text-sm text-brand-accent overflow-x-auto shadow-inner relative">
+                <div class="flex justify-between items-center text-slate-500 text-[10px] uppercase font-sans mb-2 border-b border-brand-border/40 pb-1">
+                    <span>Generated Formula Guitar TAB (<span id="tabKeyDisplay">Key of A Minor</span>)</span>
+                    <span id="playingStatusText" class="text-brand-gold animate-pulse hidden">● Playing Riff Sequence...</span>
+                </div>
+                <pre id="tabContainer" class="leading-tight text-brand-accent">
+e|----------------------------------------------------|
+B|---------5--8--5------------------------------------|
+G|--5--7------------7--5------------------------------|
+D|------------------------7--5--7---------------------|
+A|----------------------------------------------------|
+E|----------------------------------------------------|</pre>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-brand-border bg-brand-card/50 py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 space-y-1">
+            <p>Melodic Formula Masterclass Interactive Tool • Built for Guitarists</p>
+            <p class="text-[10px] text-slate-600">Based on musical concepts popularized by David Wallimann & Guitar Playback.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic Application -->
+    <script>
+        // Web Audio Context initialization
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // Guitar Pluck Synthesizer with realistic decay envelope & harmonics
+        function playGuitarTone(freq, duration = 0.8, type = 'pluck') {
+            try {
+                const ctx = getAudioContext();
+                const now = ctx.currentTime;
+
+                // Primary Oscillator (Guitar plucked string body)
+                const osc = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const filter = ctx.createBiquadFilter();
+
+                // Triangle wave for smooth fundamental guitar note
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, now);
+
+                // Slight harmonic overtone for string attack sparkle
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(freq * 2, now);
+
+                // Lowpass filter envelope simulation for guitar pick pluck
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(freq * 4, now);
+                filter.frequency.exponentialRampToValueAtTime(Math.max(freq * 0.8, 100), now + duration);
+
+                // Pluck Gain Envelope
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.35, now + 0.015); // Fast attack
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + duration); // Natural string decay
+
+                // Connections
+                osc.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc2.start(now);
+                osc.stop(now + duration);
+                osc2.stop(now + duration);
+            } catch (e) {
+                console.error("Audio playback error:", e);
+            }
+        }
+
+        // Keys Data Definitions & Frequencies
+        const KEY_DATA = {
+            'Am': {
+                name: 'A Minor / C Major',
+                root: 'A',
+                targets: ['C', 'E', 'G'],
+                passing: 'D',
+                notes: ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+                pentMinor: ['A', 'C', 'D', 'E', 'G'],
+                pentMajor: ['C', 'D', 'E', 'G', 'A'],
+                blues: ['A', 'C', 'D', 'D#', 'E', 'G'],
+                triads: ['A', 'C', 'E']
+            },
+            'Em': {
+                name: 'E Minor / G Major',
+                root: 'E',
+                targets: ['G', 'B', 'D'],
+                passing: 'A',
+                notes: ['E', 'F#', 'G', 'A', 'B', 'C', 'D'],
+                pentMinor: ['E', 'G', 'A', 'B', 'D'],
+                pentMajor: ['G', 'A', 'B', 'D', 'E'],
+                blues: ['E', 'G', 'A', 'A#', 'B', 'D'],
+                triads: ['E', 'G', 'B']
+            },
+            'Dm': {
+                name: 'D Minor / F Major',
+                root: 'D',
+                targets: ['F', 'A', 'C'],
+                passing: 'G',
+                notes: ['D', 'E', 'F', 'G', 'A', 'A#', 'C'],
+                pentMinor: ['D', 'F', 'G', 'A', 'C'],
+                pentMajor: ['F', 'G', 'A', 'C', 'D'],
+                blues: ['D', 'F', 'G', 'G#', 'A', 'C'],
+                triads: ['D', 'F', 'A']
+            },
+            'Gm': {
+                name: 'G Minor / Bb Major',
+                root: 'G',
+                targets: ['A#', 'D', 'F'],
+                passing: 'C',
+                notes: ['G', 'A', 'A#', 'C', 'D', 'D#', 'F'],
+                pentMinor: ['G', 'A#', 'C', 'D', 'F'],
+                pentMajor: ['A#', 'C', 'D', 'F', 'G'],
+                blues: ['G', 'A#', 'C', 'C#', 'D', 'F'],
+                triads: ['G', 'A#', 'D']
+            },
+            'Bm': {
+                name: 'B Minor / D Major',
+                root: 'B',
+                targets: ['D', 'F#', 'A'],
+                passing: 'E',
+                notes: ['B', 'C#', 'D', 'E', 'F#', 'G', 'A'],
+                pentMinor: ['B', 'D', 'E', 'F#', 'A'],
+                pentMajor: ['D', 'E', 'F#', 'A', 'B'],
+                blues: ['B', 'D', 'E', 'F', 'F#', 'A'],
+                triads: ['B', 'D', 'F#']
+            },
+            'Cm': {
+                name: 'C Minor / Eb Major',
+                root: 'C',
+                targets: ['D#', 'G', 'A#'],
+                passing: 'F',
+                notes: ['C', 'D', 'D#', 'F', 'G', 'G#', 'A#'],
+                pentMinor: ['C', 'D#', 'F', 'G', 'A#'],
+                pentMajor: ['D#', 'F', 'G', 'A#', 'C'],
+                blues: ['C', 'D#', 'F', 'F#', 'G', 'A#'],
+                triads: ['C', 'D#', 'G']
+            }
+        };
+
+        // Standard Guitar Tuning Open Strings (High e to Low E)
+        const GUITAR_STRINGS = [
+            { name: 'e', openNote: 'E', baseFreq: 329.63 }, // High E
+            { name: 'B', openNote: 'B', baseFreq: 246.94 },
+            { name: 'G', openNote: 'G', baseFreq: 196.00 },
+            { name: 'D', openNote: 'D', baseFreq: 146.83 },
+            { name: 'A', openNote: 'A', baseFreq: 110.00 },
+            { name: 'E', openNote: 'E', baseFreq: 82.41  }  // Low E
+        ];
+
+        // Chromatic Note Scale helper
+        const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        // Normalize sharp/flat representations
+        function normalizeNote(note) {
+            const map = { 'Bb': 'A#', 'Eb': 'D#', 'Ab': 'G#', 'Db': 'C#', 'Gb': 'F#' };
+            return map[note] || note;
+        }
+
+        // Calculate frequency for fret on string
+        function getFretFrequency(baseFreq, fret) {
+            return baseFreq * Math.pow(2, fret / 12);
+        }
+
+        // Calculate note name for fret
+        function getFretNoteName(openNote, fret) {
+            const startIndex = CHROMATIC_SCALE.indexOf(openNote);
+            return CHROMATIC_SCALE[(startIndex + fret) % 12];
+        }
+
+        // Render Fretboard
+        function renderFretboard() {
+            const container = document.getElementById('fretboardContainer');
+            const keyKey = document.getElementById('keySelect').value;
+            const mode = document.getElementById('modeSelect').value;
+            const keyInfo = KEY_DATA[keyKey];
+
+            // Update Header Display Texts
+            document.getElementById('displayRootNote').innerText = keyInfo.root;
+            document.getElementById('displayTargetTones').innerText = keyInfo.targets.join(', ');
+            document.getElementById('displayPassingTone').innerText = keyInfo.passing;
+            document.getElementById('tabKeyDisplay').innerText = keyInfo.name;
+
+            let html = `<div class="grid grid-cols-[40px_repeat(16,minmax(55px,1fr))] gap-0 relative">`;
+
+            // Fret Numbers Header Row
+            html += `<div class="h-8 flex items-center justify-center font-mono text-[10px] text-slate-500 font-bold border-b border-slate-800">STR</div>`;
+            for (let f = 0; f <= 15; f++) {
+                html += `<div class="h-8 flex items-center justify-center font-mono text-[11px] text-slate-400 font-bold border-b border-slate-800 relative">
+                    ${f === 0 ? 'NUT' : f}
+                </div>`;
+            }
+
+            // Guitar Strings
+            GUITAR_STRINGS.forEach((stringObj, stringIdx) => {
+                const stringGauge = (6 - stringIdx) * 0.6 + 1; // Thicker low strings
+
+                html += `<div class="h-10 flex items-center justify-center font-mono text-xs font-bold text-slate-400 bg-slate-900 border-r border-slate-800">${stringObj.name}</div>`;
+
+                for (let f = 0; f <= 15; f++) {
+                    const noteName = getFretNoteName(stringObj.openNote, f);
+                    const freq = getFretFrequency(stringObj.baseFreq, f);
+
+                    // Determine note role
+                    const isRoot = (noteName === keyInfo.root);
+                    const isTarget = keyInfo.targets.includes(noteName);
+                    const isPassing = (noteName === keyInfo.passing);
+                    
+                    let showMarker = false;
+                    let markerClass = '';
+                    let labelText = noteName;
+
+                    if (mode === 'formula') {
+                        if (isRoot) { showMarker = true; markerClass = 'bg-brand-coral text-white shadow-brand-coral/50'; }
+                        else if (isTarget) { showMarker = true; markerClass = 'bg-brand-accent text-slate-950 shadow-brand-accent/50'; }
+                        else if (isPassing) { showMarker = true; markerClass = 'bg-brand-gold text-slate-950 shadow-brand-gold/50'; }
+                    } else if (mode === 'minor_pentatonic') {
+                        if (keyInfo.pentMinor.includes(noteName)) {
+                            showMarker = true;
+                            markerClass = isRoot ? 'bg-brand-coral text-white shadow-brand-coral/50' : 'bg-slate-700 text-slate-100 border border-slate-500';
+                        }
+                    } else if (mode === 'major_pentatonic') {
+                        if (keyInfo.pentMajor.includes(noteName)) {
+                            showMarker = true;
+                            markerClass = isRoot ? 'bg-brand-coral text-white shadow-brand-coral/50' : 'bg-slate-700 text-slate-100 border border-slate-500';
+                        }
+                    } else if (mode === 'blues') {
+                        if (keyInfo.blues.includes(noteName)) {
+                            showMarker = true;
+                            if (isRoot) markerClass = 'bg-brand-coral text-white shadow-brand-coral/50';
+                            else if (noteName === keyInfo.blues[3]) markerClass = 'bg-brand-gold text-slate-950 shadow-brand-gold/50'; // Blue note
+                            else markerClass = 'bg-slate-700 text-slate-100 border border-slate-500';
+                        }
+                    } else if (mode === 'triads') {
+                        if (keyInfo.triads.includes(noteName)) {
+                            showMarker = true;
+                            markerClass = isRoot ? 'bg-brand-coral text-white shadow-brand-coral/50' : 'bg-brand-accent text-slate-950 shadow-brand-accent/50';
+                        }
+                    }
+
+                    // Single/Double Inlays
+                    let inlayHtml = '';
+                    if (stringIdx === 2) {
+                        if ([3, 5, 7, 9, 15].includes(f)) inlayHtml = `<div class="fret-inlay"></div>`;
+                        if (f === 12) inlayHtml = `<div class="fret-inlay double-top"></div><div class="fret-inlay double-bottom"></div>`;
+                    }
+
+                    html += `<div class="h-10 relative flex items-center justify-center border-r ${f === 0 ? 'border-r-4 border-slate-300 bg-slate-900/50' : 'border-slate-800 bg-slate-950'}">
+                        <!-- Guitar String Line -->
+                        <div class="absolute w-full bg-slate-500 pointer-events-none z-0" style="height: ${stringGauge}px;"></div>
+                        ${inlayHtml}
+                        
+                        ${showMarker ? `
+                            <button onclick="playGuitarTone(${freq.toFixed(2)}, 0.8); animateNoteClick(this);" 
+                                    class="note-btn w-6 h-6 rounded-full font-mono text-[10px] font-bold flex items-center justify-center shadow-lg relative z-20 cursor-pointer ${markerClass}"
+                                    title="${noteName} (${freq.toFixed(1)} Hz)">
+                                ${labelText}
+                            </button>
+                        ` : ''}
+                    </div>`;
+                }
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function animateNoteClick(btn) {
+            btn.classList.add('playing');
+            setTimeout(() => btn.classList.remove('playing'), 300);
+        }
+
+        function handleKeyOrModeChange() {
+            renderFretboard();
+            updateTabDisplayWithKey();
+        }
+
+        // Play 3-Step Formula Audio Examples based on current selected key
+        function playFormulaStepAudio(step) {
+            const keyKey = document.getElementById('keySelect').value;
+            const keyInfo = KEY_DATA[keyKey];
+            
+            // Find notes on fretboard corresponding to formula
+            // We use string 2 (G) and string 1 (B) positions for clear melodic pitch range
+            const baseNoteFreqs = {
+                'Am': [220.00, 261.63, 293.66, 329.63, 392.00],
+                'Em': [164.81, 196.00, 220.00, 246.94, 293.66],
+                'Dm': [146.83, 174.61, 196.00, 220.00, 261.63],
+                'Gm': [196.00, 233.08, 261.63, 293.66, 349.23],
+                'Bm': [246.94, 293.66, 329.63, 369.99, 440.00],
+                'Cm': [261.63, 311.13, 349.23, 392.00, 466.16]
+            }[keyKey];
+
+            const ctx = getAudioContext();
+
+            if (step === 1) {
+                // Hook Motif: Root -> Target -> Root
+                const notes = [
+                    { f: baseNoteFreqs[0], t: 0 },
+                    { f: baseNoteFreqs[1], t: 0.3 },
+                    { f: baseNoteFreqs[0], t: 0.6 }
+                ];
+                notes.forEach(n => setTimeout(() => playGuitarTone(n.f, 0.5), n.t * 1000));
+            } else if (step === 2) {
+                // Variation: Shift sequence up scale
+                const notes = [
+                    { f: baseNoteFreqs[1], t: 0 },
+                    { f: baseNoteFreqs[2], t: 0.25 },
+                    { f: baseNoteFreqs[3], t: 0.5 },
+                    { f: baseNoteFreqs[2], t: 0.8 }
+                ];
+                notes.forEach(n => setTimeout(() => playGuitarTone(n.f, 0.4), n.t * 1000));
+            } else if (step === 3) {
+                // Target Resolution: Land firmly on Target 5th/Root
+                const notes = [
+                    { f: baseNoteFreqs[2], t: 0 },
+                    { f: baseNoteFreqs[3], t: 0.25 },
+                    { f: baseNoteFreqs[4], t: 0.5 },
+                    { f: baseNoteFreqs[0] * 2, t: 0.85 } // Higher octave root resolution
+                ];
+                notes.forEach(n => setTimeout(() => playGuitarTone(n.f, 0.9), n.t * 1000));
+            }
+        }
+
+        // Backing Track Jam Simulator
+        let backingPlaying = false;
+        let backingInterval = null;
+
+        function toggleBackingTrack() {
+            const btn = document.getElementById('backingTrackBtn');
+            const icon = document.getElementById('backingIcon');
+            const text = document.getElementById('backingText');
+
+            if (!backingPlaying) {
+                backingPlaying = true;
+                icon.innerText = '⏹';
+                text.innerText = 'Stop Backing Groove';
+                btn.classList.add('bg-brand-coral', 'hover:bg-rose-600', 'text-white');
+                btn.classList.remove('bg-brand-accent', 'hover:bg-sky-400', 'text-brand-dark');
+
+                const keyKey = document.getElementById('keySelect').value;
+                const rootFreqs = { 'Am': 110, 'Em': 82.41, 'Dm': 146.83, 'Gm': 98, 'Bm': 123.47, 'Cm': 130.81 };
+                const baseRoot = rootFreqs[keyKey];
+
+                let beat = 0;
+                backingInterval = setInterval(() => {
+                    const ctx = getAudioContext();
+                    // Rhythm bass pulse on beats 1 and 3
+                    if (beat % 2 === 0) {
+                        playGuitarTone(baseRoot, 0.3);
+                    } else {
+                        playGuitarTone(baseRoot * 1.5, 0.2); // Fifth pulse
+                    }
+                    beat = (beat + 1) % 4;
+                }, 500); // 120 BPM
+            } else {
+                backingPlaying = false;
+                icon.innerText = '▶';
+                text.innerText = 'Start Backing Groove';
+                btn.classList.remove('bg-brand-coral', 'hover:bg-rose-600', 'text-white');
+                btn.classList.add('bg-brand-accent', 'hover:bg-sky-400', 'text-brand-dark');
+                clearInterval(backingInterval);
+            }
+        }
+
+        // TAB Riff Generator & Real-time Auto Player
+        const TAB_PATTERNS = {
+            'Am': [
+                { string: 1, fret: 5 }, { string: 1, fret: 8 }, { string: 1, fret: 5 }, 
+                { string: 2, fret: 7 }, { string: 2, fret: 5 }, { string: 3, fret: 7 }, { string: 3, fret: 5 }
+            ],
+            'Em': [
+                { string: 1, fret: 0 }, { string: 1, fret: 3 }, { string: 1, fret: 0 }, 
+                { string: 2, fret: 2 }, { string: 2, fret: 0 }, { string: 3, fret: 2 }, { string: 3, fret: 0 }
+            ],
+            'Dm': [
+                { string: 1, fret: 1 }, { string: 1, fret: 3 }, { string: 1, fret: 1 }, 
+                { string: 2, fret: 3 }, { string: 2, fret: 1 }, { string: 3, fret: 2 }, { string: 3, fret: 0 }
+            ],
+            'Gm': [
+                { string: 1, fret: 3 }, { string: 1, fret: 6 }, { string: 1, fret: 3 }, 
+                { string: 2, fret: 5 }, { string: 2, fret: 3 }, { string: 3, fret: 5 }, { string: 3, fret: 3 }
+            ],
+            'Bm': [
+                { string: 1, fret: 7 }, { string: 1, fret: 10 }, { string: 1, fret: 7 }, 
+                { string: 2, fret: 9 }, { string: 2, fret: 7 }, { string: 3, fret: 9 }, { string: 3, fret: 7 }
+            ],
+            'Cm': [
+                { string: 1, fret: 8 }, { string: 1, fret: 11 }, { string: 1, fret: 8 }, 
+                { string: 2, fret: 10 }, { string: 2, fret: 8 }, { string: 3, fret: 10 }, { string: 3, fret: 8 }
+            ]
+        };
+
+        function updateTabDisplayWithKey() {
+            const keyKey = document.getElementById('keySelect').value;
+            const sequence = TAB_PATTERNS[keyKey] || TAB_PATTERNS['Am'];
+
+            let lines = { 1: 'e|', 2: 'B|', 3: 'G|', 4: 'D|', 5: 'A|', 6: 'E|' };
+            
+            sequence.forEach(note => {
+                for (let s = 1; s <= 6; s++) {
+                    if (s === note.string) {
+                        lines[s] += `-${note.fret.toString().padStart(2, '-')}-`;
+                    } else {
+                        lines[s] += '----';
+                    }
+                }
+            });
+
+            for (let s = 1; s <= 6; s++) lines[s] += '|';
+
+            document.getElementById('tabContainer').innerText = 
+                `${lines[1]}\n${lines[2]}\n${lines[3]}\n${lines[4]}\n${lines[5]}\n${lines[6]}`;
+        }
+
+        function generateAndPlayRiff() {
+            const keyKey = document.getElementById('keySelect').value;
+            const sequence = TAB_PATTERNS[keyKey] || TAB_PATTERNS['Am'];
+            const statusText = document.getElementById('playingStatusText');
+            
+            updateTabDisplayWithKey();
+            statusText.classList.remove('hidden');
+
+            sequence.forEach((item, index) => {
+                setTimeout(() => {
+                    // String index mapping: string 1 is high e (index 0)
+                    const stringObj = GUITAR_STRINGS[item.string - 1];
+                    const freq = getFretFrequency(stringObj.baseFreq, item.fret);
+                    playGuitarTone(freq, 0.4);
+
+                    if (index === sequence.length - 1) {
+                        setTimeout(() => statusText.classList.add('hidden'), 500);
+                    }
+                }, index * 280);
+            });
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            renderFretboard();
+            updateTabDisplayWithKey();
+        });
+    </script>
+</body>
+</html>
+```
+
+### Key Enhancements Included:
+1. **Multiple Pentatonic Key Signatures**: Switch seamlessly between A Minor, E Minor, D Minor, G Minor, B Minor, and C Minor (with their relative Majors).
+2. **Dynamic 15-Fret Visualizer**: Generates standard guitar string gauges and accurate frequency calculations for all 15 frets.
+3. **5 Formula & Scale Focus Modes**: Core Formula Tones, Minor Pentatonic, Major Pentatonic, Minor & Major Triads, and Blues Scale (+ Flat 5th blue note).
+4. **Key-Transposed 3-Step Formula Audio**: Play real motif, sequence variation, and target resolution audio samples adapted in real-time to the active key.
+5. **Interactive Rhythm & TAB Riff Generator**: Renders live ASCII guitar TAB and synchronized audio playback for any selected key signature.
